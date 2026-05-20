@@ -1,5 +1,8 @@
 services:
 
+  # ---------------------------------------------------------------------------
+  # AUTH SERVICE
+  # ---------------------------------------------------------------------------
   evo-auth:
     build:
       context: ./evo-auth-service-community
@@ -7,114 +10,67 @@ services:
 
     restart: unless-stopped
 
+    environment:
+      RAILS_ENV: production
+
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/1
+
+    command: >
+      bash -c "
+      rm -f /rails/tmp/pids/server.pid &&
+      bundle exec rails db:prepare &&
+      bundle exec rails s -p 3001 -b 0.0.0.0
+      "
+
     ports:
       - "3001:3001"
 
-    env_file: .env
-
-    environment:
-      RAILS_ENV: production
-
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/1
-
-      POSTGRES_HOST: ${POSTGRES_HOST}
-
-    volumes:
-      - ./evo-auth-service-community/storage:/rails/storage
-
-    command: bash -c "rm -f /rails/tmp/pids/server.pid && bundle install && bundle exec rails db:prepare && bundle exec rails s -p 3001 -b 0.0.0.0"
-
-  evo-auth-sidekiq:
-    build:
-      context: ./evo-auth-service-community
-      dockerfile: Dockerfile
-
-    restart: unless-stopped
-
-    env_file: .env
-
-    environment:
-      RAILS_ENV: production
-
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/1
-
-      POSTGRES_HOST: ${POSTGRES_HOST}
-
-    command: bash -c "bundle install && bundle exec sidekiq"
-
+  # ---------------------------------------------------------------------------
+  # CRM SERVICE
+  # ---------------------------------------------------------------------------
   evo-crm:
     build:
       context: ./evo-ai-crm-community
       dockerfile: docker/Dockerfile
+      args:
+        RAILS_ENV: production
 
     restart: unless-stopped
+
+    environment:
+      RAILS_ENV: production
+
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/0
+
+      EVO_AUTH_SERVICE_URL: http://evo-auth:3001
+
+      APP_URL: ${APP_URL}
+
+    command: >
+      bash -c "
+      rm -f /app/tmp/pids/server.pid &&
+      bundle exec rails db:prepare &&
+      bundle exec rails s -p 3000 -b 0.0.0.0
+      "
 
     ports:
       - "3000:3000"
 
-    env_file: .env
-
-    environment:
-      RAILS_ENV: production
-
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/0
-
-      POSTGRES_HOST: ${POSTGRES_HOST}
-
-      EVO_AUTH_SERVICE_URL: http://evo-auth:3001
-
-      EVO_AI_CORE_SERVICE_URL: http://evo-core:5555
-
-      BOT_RUNTIME_URL: http://evo-bot-runtime:8080
-
-      BOT_RUNTIME_SECRET: ${BOT_RUNTIME_SECRET}
-
-      BOT_RUNTIME_POSTBACK_BASE_URL: ${APP_URL}
-
-    volumes:
-      - crm_bundle:/usr/local/bundle
-      - crm_node_modules:/app/node_modules
-      - crm_cache:/app/tmp/cache
-
-    entrypoint: docker/entrypoints/rails.sh
-
-    command: ["bundle", "exec", "rails", "s", "-p", "3000", "-b", "0.0.0.0"]
-
-  evo-crm-sidekiq:
-    build:
-      context: ./evo-ai-crm-community
-      dockerfile: docker/Dockerfile
-
-    restart: unless-stopped
-
-    env_file: .env
-
-    environment:
-      RAILS_ENV: production
-
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/0
-
-      POSTGRES_HOST: ${POSTGRES_HOST}
-
-      EVO_AUTH_SERVICE_URL: http://evo-auth:3001
-
-      EVO_AI_CORE_SERVICE_URL: http://evo-core:5555
-
-      BOT_RUNTIME_URL: http://evo-bot-runtime:8080
-
-      BOT_RUNTIME_SECRET: ${BOT_RUNTIME_SECRET}
-
-      BOT_RUNTIME_POSTBACK_BASE_URL: ${APP_URL}
-
-    volumes:
-      - crm_bundle:/usr/local/bundle
-      - crm_node_modules:/app/node_modules
-      - crm_cache:/app/tmp/cache
-
-    entrypoint: docker/entrypoints/rails.sh
-
-    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
-
+  # ---------------------------------------------------------------------------
+  # CORE SERVICE
+  # ---------------------------------------------------------------------------
   evo-core:
     build:
       context: ./evo-ai-core-service-community
@@ -122,110 +78,41 @@ services:
 
     restart: unless-stopped
 
-    ports:
-      - "5555:5555"
-
-    env_file: .env
-
     environment:
       DB_HOST: ${POSTGRES_HOST}
-
       DB_PORT: ${POSTGRES_PORT}
-
       DB_USER: ${POSTGRES_USERNAME}
-
       DB_PASSWORD: ${POSTGRES_PASSWORD}
-
       DB_NAME: ${POSTGRES_DATABASE}
 
       DB_SSLMODE: disable
 
-      PORT: "5555"
+      PORT: 5555
 
       EVOLUTION_BASE_URL: http://evo-crm:3000
-
       EVO_AUTH_BASE_URL: http://evo-auth:3001
 
-      AI_PROCESSOR_URL: http://evo-processor:8000
-
-  evo-processor:
-    build:
-      context: ./evo-ai-processor-community
-      dockerfile: Dockerfile
-
-    restart: unless-stopped
-
     ports:
-      - "8000:8000"
+      - "5555:5555"
 
-    env_file: .env
-
-    environment:
-      POSTGRES_CONNECTION_STRING: postgresql://${POSTGRES_USERNAME}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DATABASE}
-
-      REDIS_HOST: ${REDIS_HOST}
-
-      REDIS_PORT: ${REDIS_PORT}
-
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-
-      REDIS_SSL: "false"
-
-      HOST: 0.0.0.0
-
-      PORT: "8000"
-
-      EVO_AI_CRM_URL: http://evo-crm:3000
-
-      CORE_SERVICE_URL: http://evo-core:5555/api/v1
-
-    volumes:
-      - processor_logs:/app/logs
-
-  evo-bot-runtime:
-    build:
-      context: ./evo-bot-runtime
-      dockerfile: Dockerfile
-
-    restart: unless-stopped
-
-    ports:
-      - "8080:8080"
-
-    env_file: .env
-
-    environment:
-      LISTEN_ADDR: 0.0.0.0:8080
-
-      REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}
-
-      AI_PROCESSOR_URL: http://evo-processor:8000
-
-      BOT_RUNTIME_SECRET: ${BOT_RUNTIME_SECRET}
-
+  # ---------------------------------------------------------------------------
+  # FRONTEND
+  # ---------------------------------------------------------------------------
   evo-frontend:
     build:
       context: ./evo-ai-frontend-community
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${APP_URL}
+        VITE_AUTH_API_URL: ${AUTH_URL}
+        VITE_EVOAI_API_URL: ${CORE_URL}
 
     restart: unless-stopped
 
     environment:
       VITE_API_URL: ${APP_URL}
-
       VITE_AUTH_API_URL: ${AUTH_URL}
-
-      VITE_WS_URL: ${APP_URL}
-
       VITE_EVOAI_API_URL: ${CORE_URL}
-
-      VITE_AGENT_PROCESSOR_URL: ${PROCESSOR_URL}
 
     ports:
       - "5173:80"
-
-volumes:
-  crm_bundle:
-  crm_node_modules:
-  crm_cache:
-  processor_logs:
