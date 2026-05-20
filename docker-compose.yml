@@ -22,7 +22,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}/1
 
     command: >
-      bash -c "
+      sh -c "
       rm -f /rails/tmp/pids/server.pid &&
       bundle exec rails db:prepare &&
       bundle exec rails s -p 3001 -b 0.0.0.0
@@ -59,7 +59,7 @@ services:
       APP_URL: ${APP_URL}
 
     command: >
-      bash -c "
+      sh -c "
       rm -f /app/tmp/pids/server.pid &&
       bundle exec rails db:prepare &&
       bundle exec rails s -p 3000 -b 0.0.0.0
